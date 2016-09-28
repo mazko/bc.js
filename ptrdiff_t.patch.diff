@@ -1,0 +1,13 @@
+diff --git a/bc-1.06/dc/string.c b/bc-1.06/dc/string.c
+index a7f79a4..a5442d0 100644
+--- a/bc-1.06/dc/string.c
++++ b/bc-1.06/dc/string.c
+@@ -28,7 +28,7 @@
+ 
+ #include <stdio.h>
+ #ifdef HAVE_STDDEF_H
+-# include <stddef.h>	/* ptrdiff_t */
++//# include <stddef.h>	/* ptrdiff_t */
+ #else
+ # define ptrdiff_t	size_t
+ #endif
