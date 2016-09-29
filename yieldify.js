@@ -3,7 +3,7 @@
 /*
  * Copyright 2016, Oleg Mazko
  *
- * npm i esprima escodegen estraverse
+ * npm i esprima escodegen estraverse escope
  * node yieldify.js in.emcc.js out.emcc.y.js
  */
 
@@ -332,6 +332,7 @@ var ast = esprima.parse(
             if (next_names.length) bubble(next_names);
         }
         bubble(yld_fn_seed);
+        assert(Array.from(new Set(yld_fn_names)).length ===  yld_fn_names.length);
         const yld_fn = Array.from(new Set(yld_fn_names), v => asm_bindings.fn.get(v).node);
         traverse_replace_asmjs({
             leave: ({node, assert}) => {
@@ -575,6 +576,23 @@ var ast = esprima.parse(
                 }
                 if (yld_fn.includes(node)){
                     node.generator = true;
+                    return node;
+                }
+                if (node === asm_bindings.return){
+                    assert(node.argument.type === 'ObjectExpression');
+                    const props = [];
+                    for (const prop of node.argument.properties){
+                        assert(prop.key.type === 'Identifier');
+                        assert(prop.value.type === 'Identifier');
+                        if (yld_fn_names.includes(prop.value.name)
+                                && prop.key.name !== '_main') {
+                            // http://misc.flogisoft.com/bash/tip_colors_and_formatting
+                            console.log(`\x1B[93m${prop.key.name}\x1B[0m (generator) removed from asm export (return value) !`);
+                        } else {
+                            props.push(prop);
+                        }
+                    }
+                    node.argument.properties = props;
                     return node;
                 }
             }
