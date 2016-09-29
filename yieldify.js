@@ -14,17 +14,19 @@ const fs = require('fs'),
     escodegen = require('escodegen'),
     estraverse = require('estraverse');
 
-console.log('Reading input file...');
+// http://misc.flogisoft.com/bash/tip_colors_and_formatting
+console.log('\x1B[92mReading input file...\x1B[0m');
 
 var ast = fs.readFileSync(process.argv[2], 'utf8');
 
-console.log('AST parsing...');
+console.log('\x1B[92mAST parsing...\x1B[0m');
 
 ast = acorn.parse(ast, {locations: true});
+// ast = acorn.parse(ast);
 
 (function () {
 
-    console.log('Finding asm...');
+    console.log('\x1B[92mSearching for asm...\x1B[0m');
 
     const traverse_replace_asmjs = (function(){
 
@@ -108,7 +110,7 @@ ast = acorn.parse(ast, {locations: true});
 
     // first stage - find declarations
 
-    console.log('Declarations...');
+    console.log('\x1B[92mDeclarations...\x1B[0m');
 
     (function() {
         traverse_replace_asmjs({
@@ -199,38 +201,37 @@ ast = acorn.parse(ast, {locations: true});
 
     // console.log(asm_bindings);
 
-    console.log('Binding...');
+    console.log('\x1B[92mBinding...\x1B[0m');
 
     // second stage - find functions callers
     (function() {
-        const skip_asserts = [asm_bindings.return, 
+        const skip_asserts = new Set([asm_bindings.return, 
             ...Array.from(asm_bindings.fn_tables.values(), v => v.node),
-            ...Array.from(asm_bindings.syscalls.values(), v => v.node)];
+            ...Array.from(asm_bindings.syscalls.values(), v => v.node)]);
 
-        // http://mazurov.github.io/escope-demo/
-        const scopeManager = escope.analyze(ast);
-        var scope;
-        const has_ref_to_asm = (id) => {
-            for (const variable of scope.variables) {
-                for (const ref of variable.references){
-                    if (ref.identifier === id) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        };
+        var has_ref_to_asm;
         traverse_replace_asmjs({
             enter: ({node, assert, stack, asm}) => {
-                if (skip_asserts.includes(node)) {
+                if (skip_asserts.has(node)) {
                     return estraverse.VisitorOption.Skip;
                 }
                 switch (node.type) {
                     case 'FunctionExpression': {
                         // var f = function(){};
                         assert(node === asm);
-                        assert(!scope);
-                        scope = scopeManager.acquire(node);
+                        assert(!has_ref_to_asm);
+                        console.log('Escope...');
+                        // http://mazurov.github.io/escope-demo/
+                        const scopeManager = escope.analyze(ast),
+                              scope = scopeManager.acquire(node),
+                              cache_refs = new Set();
+                        for (const variable of scope.variables) {
+                            for (const ref of variable.references){
+                                cache_refs.add(ref.identifier);
+                            }
+                        }
+                        has_ref_to_asm = id => cache_refs.has(id);
+                        console.log('Escope is ready !');
                         break;
                     }
                     case 'CallExpression':
@@ -250,7 +251,7 @@ ast = acorn.parse(ast, {locations: true});
                                 } else {
                                     callers.set(fn.id.name, [node]);
                                 }
-                                skip_asserts.push(callee);
+                                skip_asserts.add(callee);
                                 // console.log(callee.name)
                                 // console.log(callers)
                             } else if(asm_bindings.syscalls.has(callee.name)){
@@ -260,7 +261,7 @@ ast = acorn.parse(ast, {locations: true});
                                 } else {
                                     callers.set(fn.id.name, [node]);
                                 }
-                                skip_asserts.push(callee);
+                                skip_asserts.add(callee);
                                 // console.log(callee.name)
                                 // console.log(callers)
                             }
@@ -277,7 +278,7 @@ ast = acorn.parse(ast, {locations: true});
                             } else {
                                 callers.set(fn.id.name, [node]);
                             }
-                            skip_asserts.push(callee.object);
+                            skip_asserts.add(callee.object);
                             // console.log(callee.object.name)
                             // console.log(callers)
                             break;
@@ -287,12 +288,14 @@ ast = acorn.parse(ast, {locations: true});
                         break;
 
                     case 'Identifier':
-                        const la = c => assert(c || !has_ref_to_asm(node));
-                        if (asm_bindings.fn.has(node.name)){
-                            la(asm_bindings.fn.get(node.name).node.id === node);
+                        if (!has_ref_to_asm(node)){
+                            break;
                         }
-                        la(!asm_bindings.fn_tables.has(node.name));
-                        la(!asm_bindings.syscalls.has(node.name));
+                        if (asm_bindings.fn.has(node.name)){
+                            assert(asm_bindings.fn.get(node.name).node.id === node);
+                        }
+                        assert(!asm_bindings.fn_tables.has(node.name));
+                        assert(!asm_bindings.syscalls.has(node.name));
                         break;
                 }
             }
@@ -303,7 +306,8 @@ ast = acorn.parse(ast, {locations: true});
 
     // final stage - replace nodes
     (function(){
-        const yld_fn_names = [], yld_fn_seed = [], yld_callers = [], syscalls = [],
+        var yld_callers = [], syscalls = [];
+        const yld_fn_names = new Set(), yld_fn_seed = [],
               push_callers = c => {
                 for(const a of c.values()) yld_callers.push(...a);
               };
@@ -320,13 +324,13 @@ ast = acorn.parse(ast, {locations: true});
             const next_names = [];
             for(const name of names) {
                 assert(asm_bindings.fn.has(name));
-                if (yld_fn_names.includes(name)) continue;
+                if (yld_fn_names.has(name)) continue;
                 const {callers} = asm_bindings.fn.get(name);
                 const callers_names = [...callers.keys()];
                 console.log('Direct calls: ' + callers_names + ' --> ' + name);
                 next_names.push(...callers_names);
                 push_callers(callers);
-                yld_fn_names.push(name);
+                yld_fn_names.add(name);
                 for (const [key, value] of asm_bindings.fn_tables) {
                     if(value.names.includes(name)) {
                         console.log('Table: ' + name + ' --> ' + key + '[' + value.names + ']');
@@ -342,11 +346,16 @@ ast = acorn.parse(ast, {locations: true});
             if (next_names.length) bubble(next_names);
         }
         bubble(yld_fn_seed);
-        assert(Array.from(new Set(yld_fn_names)).length ===  yld_fn_names.length);
-        const yld_fn = Array.from(new Set(yld_fn_names), v => asm_bindings.fn.get(v).node);
+        const yld_fn = new Set(Array.from(yld_fn_names, v => asm_bindings.fn.get(v).node));
+
+        console.log('\x1B[92mAST modifications...\x1B[0m');
+
+        yld_callers = new Set(yld_callers);
+        syscalls = new Set(syscalls);
+
         traverse_replace_asmjs({
             leave: ({node, assert}) => {
-                if (syscalls.includes(node)){
+                if (syscalls.has(node)){
                     assert(node.declarations.length === 1);
                     const decl = node.declarations[0];
                     const new_node = {
@@ -577,14 +586,14 @@ ast = acorn.parse(ast, {locations: true});
                     };
                     return new_node;
                 }
-                if (yld_callers.includes(node)){
+                if (yld_callers.has(node)){
                     return {
                         "type": "YieldExpression",
                         "argument": node,
                         "delegate": true
                     };
                 }
-                if (yld_fn.includes(node)){
+                if (yld_fn.has(node)){
                     node.generator = true;
                     return node;
                 }
@@ -594,9 +603,8 @@ ast = acorn.parse(ast, {locations: true});
                     for (const prop of node.argument.properties){
                         assert(prop.key.type === 'Identifier');
                         assert(prop.value.type === 'Identifier');
-                        if (yld_fn_names.includes(prop.value.name)
+                        if (yld_fn_names.has(prop.value.name)
                                 && prop.key.name !== '_main') {
-                            // http://misc.flogisoft.com/bash/tip_colors_and_formatting
                             console.log(`\x1B[93m${prop.key.name}\x1B[0m (generator) removed from asm export (return value) !`);
                         } else {
                             props.push(prop);
@@ -609,6 +617,8 @@ ast = acorn.parse(ast, {locations: true});
         });
     })();
 })();
+
+console.log('\x1B[92mLiterals...\x1B[0m');
 
 // fix https://github.com/estools/escodegen/issues/306
 
@@ -623,6 +633,8 @@ ast = estraverse.replace(ast, {
     }
   }
 });
+
+console.log('\x1B[92mAST to source file...\x1B[0m');
 
 fs.writeFileSync(
   process.argv[3], 
