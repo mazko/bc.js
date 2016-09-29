@@ -50,7 +50,7 @@ fi
 . node_env/bin/activate
 
 if [ ! -d "node_modules" ]; then
-  npm i esprima escodegen estraverse escope
+  npm i acorn escodegen estraverse escope
 fi
 
 node yieldify.js ui/bc.js ui/bc.y.js $2

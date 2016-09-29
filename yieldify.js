@@ -3,23 +3,28 @@
 /*
  * Copyright 2016, Oleg Mazko
  *
- * npm i esprima escodegen estraverse escope
+ * npm i acorn escodegen estraverse escope
  * node yieldify.js in.emcc.js out.emcc.y.js
  */
 
 const fs = require('fs'),
     assert = require('assert'),
     escope = require('escope'),
-    esprima = require('esprima'),
+    acorn = require('acorn'),
     escodegen = require('escodegen'),
     estraverse = require('estraverse');
-    
-var ast = esprima.parse(
-    fs.readFileSync(process.argv[2], 'utf8'), 
-    {loc: true}
-);
+
+console.log('Reading input file...');
+
+var ast = fs.readFileSync(process.argv[2], 'utf8');
+
+console.log('AST parsing...');
+
+ast = acorn.parse(ast, {locations: true});
 
 (function () {
+
+    console.log('Finding asm...');
 
     const traverse_replace_asmjs = (function(){
 
@@ -102,6 +107,9 @@ var ast = esprima.parse(
     };
 
     // first stage - find declarations
+
+    console.log('Declarations...');
+
     (function() {
         traverse_replace_asmjs({
             enter: ({node, assert, stack, asm}) => {
@@ -190,6 +198,8 @@ var ast = esprima.parse(
     assert(asm_bindings.syscalls.size);
 
     // console.log(asm_bindings);
+
+    console.log('Binding...');
 
     // second stage - find functions callers
     (function() {
