@@ -616,6 +616,59 @@ ast = acorn.parse(ast, {locations: true});
             }
         });
     })();
+
+    console.log('\x1B[92mAssert suspicious invoke_ (dyn_Call_)...\x1B[0m');
+
+    (function(){
+        var is_variable_used;
+        traverse_replace_asmjs({
+            enter: ({node, assert, stack, asm}) => {
+                switch (node.type) {
+                    case 'FunctionExpression': {
+                        // var f = function(){};
+                        assert(!is_variable_used);
+                        // http://mazurov.github.io/escope-demo/
+                        const scopeManager = escope.analyze(ast),
+                              scope = scopeManager.acquire(node);
+                        is_variable_used = id => {
+                            for (const variable of scope.variables) {
+                                if (variable.identifiers.includes(id)){
+                                    for (const ref of variable.references){
+                                        if (ref.identifier !== id) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                            return false;
+                        };
+                        break;
+                    }
+                    case 'MemberExpression': {
+                        if (node.property.type === 'Identifier' 
+                                && node.property.name.startsWith('invoke_')) {
+                            assert(node.computed === false);
+                            assert(node.object.type === 'Identifier');
+                            assert(node.object.name === 'env');
+                            assert(stack.length === 4);
+                            const [var_decl, decl] = stack.slice(2);
+                            assert(var_decl.kind === 'var');
+                            assert(var_decl.type === 'VariableDeclaration');
+                            assert(var_decl.declarations.length === 1);
+                            assert(decl.type === 'VariableDeclarator');
+                            const {name} = decl.id;
+                            if (is_variable_used(decl.id)){
+                                console.log(`\x1B[91mSuspicious ${node.property.name}\x1B[0m`);
+                            }
+                        } else if (node.property.type === 'Literal'){
+                            assert(!node.property.raw.startsWith('invoke_'))
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+    })();
 })();
 
 console.log('\x1B[92mLiterals...\x1B[0m');
