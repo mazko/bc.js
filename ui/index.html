@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+    html, body {
+      background-color: #333;
+      color: white;
+      font-family: monospace;
+      margin: 0;
+      padding: 0;
+    }
+    /* The console container element */
+    #console {
+      height: 400px;
+      width: 750px;
+      position:relative;
+      background-color: black;
+      border: 2px solid #CCC;
+      margin: 0 auto;
+      margin-top: 50px;
+    }
+    /* The inner console element. */
+    .jqconsole {
+        padding: 10px;
+    }
+    /* The cursor. */
+    .jqconsole-cursor {
+        background-color: gray;
+    }
+    /* The cursor color when the console looses focus. */
+    .jqconsole-blurred .jqconsole-cursor {
+        background-color: #666;
+    }
+    /* The current prompt text color */
+    .jqconsole-prompt {
+        color: #0d0;
+    }
+    /* The command history */
+    .jqconsole-old-prompt {
+        color: #0b0;
+        font-weight: normal;
+    }
+    /* The text color when in input mode. */
+    .jqconsole-input {
+        color: #dd0;
+    }
+    /* Previously entered input. */
+    .jqconsole-old-input {
+        color: #bb0;
+        font-weight: normal;
+    }
+    /* The text color of the output. */
+    .jqconsole-output {
+        color: white;
+    }
+
+    
+    /* The text color of the stderr. */
+    .jqconsole-stderr {
+        color: red;
+    }
+    </style>
+  </head>
+  <body>
+    <div id="console"></div>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="lib/jqconsole/jqconsole.min.js" type="text/javascript" charset="utf-8"></script>
+
+    <script>
+      $(function () {
+        window.jqconsole = $('#console').jqconsole('','');
+
+        window.Module = {};
+
+        Module.noExitRuntime = true;      
+
+        Module.arguments = [];
+
+        var assert_resolved = null;
+        var prompt_data = null;
+        Module.prompt_custom = function(){ 
+          var a = prompt_data; 
+          prompt_data = null;
+          console.log(a);
+          return a;
+        };
+        Module.get_stdin_promise = function () {
+          if (assert_resolved === false) {
+            var err = new Error('Blocking stdin recursion ?');
+            console.error(err);
+            throw err;
+          }
+          if (prompt_data !== null) {
+            var err = new Error('Previous data ?');
+            console.error(err);
+            throw err;
+          }
+          assert_resolved = false;
+          return new Promise(function(resolve, reject) {
+            jqconsole.Prompt(true, function (data) {
+              prompt_data = data;
+              assert_resolved = true;
+              resolve();
+            });            
+          });
+        }
+
+        Module.pre_init_custom = function(TTY, FS) {
+
+          var realMain = Module._main;
+          Module._main = function() {
+            function execute(generator, yieldValue) {
+              var next = generator.next(yieldValue);
+              if (!next.done) {
+                next.value.then(
+                  result => execute(generator, result),
+                  err => generator.throw(err)
+                );
+              } else {
+                // real exit status code here
+                console.log(next.value);
+              }
+            }
+            execute( realMain.apply(null, arguments) );
+          }
+
+          // cat /proc/tty/drivers
+          // https://github.com/kripken/emscripten/issues/4366
+          // fix isatty() fails if just override Module[stdout]
+
+          // stdin
+          // var assert_resolved = null;
+          // TTY.ttys[FS.makedev(5, 0)].ops.get_char = function (tty) {
+          //   if (assert_resolved === false) {
+          //     var err = new Error('Blocking stdin found ?');
+          //     console.error(err);
+          //     throw err;
+          //   }
+          //   assert_resolved = false;
+          //   return new Promise(function(resolve, reject) {
+          //     if (!tty.input.length) {
+          //       jqconsole.Prompt(true, function (i) {
+          //         tty.input = Module['intArrayFromString'](i + '\n', true);
+          //         assert_resolved = true;
+          //         resolve(tty.input.shift());
+          //       });
+          //     }
+          //     else {
+          //       assert_resolved = true;
+          //       resolve(tty.input.shift());
+          //     }             
+          //   });
+          // };
+
+          // stdout
+          TTY.ttys[FS.makedev(5, 0)].ops.put_char = function (tty, val) {
+            jqconsole.Write(Module['UTF8ArrayToString']([val], 0));
+          }
+          // stderr
+          TTY.ttys[FS.makedev(6, 0)].ops.put_char = function (tty, val) {
+            jqconsole.Write(
+              Module['UTF8ArrayToString']([val], 0),
+              'jqconsole-stderr');
+          }
+        }
+
+        test_asmjs_fn(Module);
+      });
+    </script>
+    <script src='test.f.y.js'></script>
+  </body>
+</html>
