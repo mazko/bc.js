@@ -39,8 +39,6 @@ node yieldify.js ui/test.js ui/test.y.js
 # awk '/EMSCRIPTEN_START_ASM/,/EMSCRIPTEN_END_ASM/' ui/bc.js > asm.js
 
 # stdio.h - find potential stdin calls
-# grep -r '\b\(fgetc\|fgets\|fread\|getc\|getchar\|gets\|scanf\|vscanf\|fscanf\|vfscanf\)\b' \
-# --include="*.c" --include="*.h" --include="*.cc" --include="*.cpp" \
-# bc-1.06/bc
+# grep -r '\b\(fgetc\|fgets\|fread\|getc\|getchar\|gets\|scanf\|vscanf\|fscanf\|vfscanf\|getline\)\b' --include="*.c" --include="*.h" --include="*.cc" --include="*.cpp" bc-1.06/bc
 
 # chown -R $USER emcc-build
