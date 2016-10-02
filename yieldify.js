@@ -168,8 +168,9 @@ ast = acorn.parse(ast, {locations: true});
                     case 'MemberExpression': {
                         // var ___syscall145=env.___syscall145;
                         const candidates = ['___syscall145', '___syscall3'];
+                        const dyn_call_exs = [];
                         if (node.property.type === 'Identifier' 
-                                && candidates.includes(node.property.name)) {
+                                && [...candidates, ...dyn_call_exs].includes(node.property.name)) {
                             assert(node.computed === false);
                             assert(node.object.type === 'Identifier');
                             assert(node.object.name === 'env');
@@ -348,6 +349,63 @@ ast = acorn.parse(ast, {locations: true});
         bubble(yld_fn_seed);
         const yld_fn = new Set(Array.from(yld_fn_names, v => asm_bindings.fn.get(v).node));
 
+        console.log('\x1B[92mAssert suspicious invoke_ (dyn_Call_)...\x1B[0m');
+
+        (function(){
+            var is_variable_used;
+            const skip_asserts = new Set(Array.from(asm_bindings.env.values(), v => v.node));
+            traverse_replace_asmjs({
+                enter: ({node, assert, stack, asm}) => {
+                    if (skip_asserts.has(node)) {
+                        return estraverse.VisitorOption.Skip;
+                    }
+                    switch (node.type) {
+                        case 'FunctionExpression': {
+                            // var f = function(){};
+                            assert(!is_variable_used);
+                            // http://mazurov.github.io/escope-demo/
+                            const scopeManager = escope.analyze(ast),
+                                  scope = scopeManager.acquire(node);
+                            is_variable_used = id => {
+                                for (const variable of scope.variables) {
+                                    if (variable.identifiers.includes(id)){
+                                        for (const ref of variable.references){
+                                            if (ref.identifier !== id) {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                                return false;
+                            };
+                            break;
+                        }
+                        case 'MemberExpression': {
+                            if (node.property.type === 'Identifier' 
+                                    && node.property.name.startsWith('invoke_')) {
+                                assert(node.computed === false);
+                                assert(node.object.type === 'Identifier');
+                                assert(node.object.name === 'env');
+                                assert(stack.length === 4);
+                                const [var_decl, decl] = stack.slice(2);
+                                assert(var_decl.kind === 'var');
+                                assert(var_decl.type === 'VariableDeclaration');
+                                assert(var_decl.declarations.length === 1);
+                                assert(decl.type === 'VariableDeclarator');
+                                const {name} = decl.id;
+                                if (is_variable_used(decl.id)){
+                                    console.log(`\x1B[91mSuspicious ${node.property.name}\x1B[0m`);
+                                }
+                            } else if (node.property.type === 'Literal'){
+                                assert(!node.property.raw.startsWith('invoke_'))
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+        })();
+
         console.log('\x1B[92mAST modifications...\x1B[0m');
 
         yld_callers = new Set(yld_callers);
@@ -358,38 +416,64 @@ ast = acorn.parse(ast, {locations: true});
                 if (yld_env.has(node)){
                     assert(node.declarations.length === 1);
                     const decl = node.declarations[0];
-                    node.declarations[0].init = {
-                        "type": "CallExpression",
-                        "callee": {
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": {
-                                "type": "MemberExpression",
-                                "computed": false,
-                                "object": {
-                                    "type": "Identifier",
-                                    "name": "Module"
-                                },
-                                "property": {
-                                    "type": "Identifier",
-                                    "name": "yld_api"
+                    return {
+                        "type": "FunctionDeclaration",
+                        "id": decl.id,
+                        "params": [],
+                        "body": {
+                            "type": "BlockStatement",
+                            "body": [
+                                {
+                                    "type": "ReturnStatement",
+                                    "argument": {
+                                        "type": "YieldExpression",
+                                        "argument": {
+                                            "type": "CallExpression",
+                                            "callee": {
+                                                "type": "MemberExpression",
+                                                "computed": false,
+                                                "object": {
+                                                    "type": "MemberExpression",
+                                                    "computed": false,
+                                                    "object": {
+                                                        "type": "MemberExpression",
+                                                        "computed": false,
+                                                        "object": {
+                                                            "type": "Identifier",
+                                                            "name": "Module"
+                                                        },
+                                                        "property": {
+                                                            "type": "Identifier",
+                                                            "name": "yld_api"
+                                                        }
+                                                    },
+                                                    "property": decl.init.property
+                                                },
+                                                "property": {
+                                                    "type": "Identifier",
+                                                    "name": "apply"
+                                                }
+                                            },
+                                            "arguments": [
+                                                {
+                                                    "type": "Literal",
+                                                    "value": null,
+                                                    "raw": "null"
+                                                },
+                                                {
+                                                    "type": "Identifier",
+                                                    "name": "arguments"
+                                                }
+                                            ]
+                                        },
+                                        "delegate": true
+                                    }
                                 }
-                            },
-                            "property": decl.id
+                            ]
                         },
-                        "arguments": [
-                            decl.init, 
-                            {
-                                "type": "Identifier",
-                                "name": "SYSCALLS"
-                            },
-                            {
-                                "type": "Identifier",
-                                "name": "asm"
-                            }
-                        ]
+                        "generator": true,
+                        "expression": false
                     };
-                    return node;
                 }
                 if (yld_callers.has(node)){
                     return {
@@ -413,59 +497,6 @@ ast = acorn.parse(ast, {locations: true});
                         }
                     }
                     return node;
-                }
-            }
-        });
-    })();
-
-    console.log('\x1B[92mAssert suspicious invoke_ (dyn_Call_)...\x1B[0m');
-
-    (function(){
-        var is_variable_used;
-        traverse_replace_asmjs({
-            enter: ({node, assert, stack, asm}) => {
-                switch (node.type) {
-                    case 'FunctionExpression': {
-                        // var f = function(){};
-                        assert(!is_variable_used);
-                        // http://mazurov.github.io/escope-demo/
-                        const scopeManager = escope.analyze(ast),
-                              scope = scopeManager.acquire(node);
-                        is_variable_used = id => {
-                            for (const variable of scope.variables) {
-                                if (variable.identifiers.includes(id)){
-                                    for (const ref of variable.references){
-                                        if (ref.identifier !== id) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                            return false;
-                        };
-                        break;
-                    }
-                    case 'MemberExpression': {
-                        if (node.property.type === 'Identifier' 
-                                && node.property.name.startsWith('invoke_')) {
-                            assert(node.computed === false);
-                            assert(node.object.type === 'Identifier');
-                            assert(node.object.name === 'env');
-                            assert(stack.length === 4);
-                            const [var_decl, decl] = stack.slice(2);
-                            assert(var_decl.kind === 'var');
-                            assert(var_decl.type === 'VariableDeclaration');
-                            assert(var_decl.declarations.length === 1);
-                            assert(decl.type === 'VariableDeclarator');
-                            const {name} = decl.id;
-                            if (is_variable_used(decl.id)){
-                                console.log(`\x1B[91mSuspicious ${node.property.name}\x1B[0m`);
-                            }
-                        } else if (node.property.type === 'Literal'){
-                            assert(!node.property.raw.startsWith('invoke_'))
-                        }
-                        break;
-                    }
                 }
             }
         });

@@ -9,7 +9,7 @@ unset alias
 
 mkdir -p emcc-build/
 
-emcc --memory-init-file 0  \
+emcc $1 --memory-init-file 0  \
    test.c \
   -o ui/test.js
 
@@ -22,7 +22,7 @@ fi
 if [ ! -d "node_modules" ]; then
   npm i acorn escodegen estraverse escope
 fi
-node yieldify.js ui/test.js ui/test.y.js
+node yieldify.js ui/test.js ui/test.y.js $2
 
 # clean global scope from asmjs vars
 # cat /dev/urandom | tr -dc A-Za-z | head -c 42
@@ -30,7 +30,7 @@ node yieldify.js ui/test.js ui/test.y.js
   echo 'function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){'
   echo '\tvar Module = zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr;'
   echo '\tvar window = {};'
-  echo '\tModule.preInit = function(){ Module.yld_pre_init(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/test.y.js
   echo '}'
 } > ui/test.f.y.js

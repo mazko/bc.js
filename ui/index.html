@@ -105,37 +105,33 @@
         }
 
         Module.yld_api = {
-          ___syscall3: (env__syscall, SYSCALLS) => {
-            return function* ___syscall3(which, varargs) {
-              SYSCALLS.varargs = varargs;
-              try {
-                  var fd = SYSCALLS.getStreamFromFD().fd;
-                  if (fd !== 0) {
-                      throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
-                  } else {
-                      yield* get_stdin_promise();
-                  }
-              } catch (e) {
-                  console.warn(e);
-              }
-              return env__syscall.apply(null, arguments);
+          ___syscall3: function* (which, varargs) {
+            Module.yld_SYSCALLS.varargs = varargs;
+            try {
+                var fd = Module.yld_SYSCALLS.getStreamFromFD().fd;
+                if (fd !== 0) {
+                    throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
+                } else {
+                    yield* get_stdin_promise();
+                }
+            } catch (e) {
+                console.warn(e);
             }
+            return Module.asmLibraryArg.___syscall3.apply(null, arguments);
           },
-          ___syscall145: (env__syscall, SYSCALLS) => {
-            return function* ___syscall145(which, varargs) {
-              SYSCALLS.varargs = varargs;
-              try {
-                  var fd = SYSCALLS.getStreamFromFD().fd;
-                  if (fd !== 0) {
-                      throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
-                  } else {
-                      yield* get_stdin_promise();
-                  }
-              } catch (e) {
-                  console.warn(e);
-              }
-              return env__syscall.apply(null, arguments);
+          ___syscall145: function* (which, varargs) {
+            Module.yld_SYSCALLS.varargs = varargs;
+            try {
+                var fd = Module.yld_SYSCALLS.getStreamFromFD().fd;
+                if (fd !== 0) {
+                    //throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
+                } else {
+                    yield* get_stdin_promise();
+                }
+            } catch (e) {
+                console.warn(e);
             }
+            return Module.asmLibraryArg.___syscall145.apply(null, arguments);
           }
         };
 
