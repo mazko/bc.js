@@ -104,7 +104,7 @@ ast = acorn.parse(ast, {locations: true});
     const asm_bindings = {
         fn: new Map(), 
         fn_tables: new Map(),
-        syscalls: new Map(),
+        env: new Map(),
         return: null
     };
 
@@ -127,7 +127,7 @@ ast = acorn.parse(ast, {locations: true});
                         const {name} = node.id;
                         assert(!asm_bindings.fn.has(name));
                         assert(!asm_bindings.fn_tables.has(name));
-                        assert(!asm_bindings.syscalls.has(name));
+                        assert(!asm_bindings.env.has(name));
                         asm_bindings.fn.set(name, { node, callers: new Map() });
                         break;
                     }
@@ -142,7 +142,7 @@ ast = acorn.parse(ast, {locations: true});
                         const {name} = decl.id;
                         assert(!asm_bindings.fn_tables.has(name));
                         assert(!asm_bindings.fn.has(name));
-                        assert(!asm_bindings.syscalls.has(name));
+                        assert(!asm_bindings.env.has(name));
                         const names = node.elements.map(e => {
                             assert(e.type === 'Identifier');
                             return e.name;
@@ -180,10 +180,10 @@ ast = acorn.parse(ast, {locations: true});
                             assert(var_decl.declarations.length === 1);
                             assert(decl.type === 'VariableDeclarator');
                             const {name} = decl.id;
-                            assert(!asm_bindings.syscalls.has(name));
+                            assert(!asm_bindings.env.has(name));
                             assert(!asm_bindings.fn.has(name));
                             assert(!asm_bindings.fn_tables.has(name));
-                            asm_bindings.syscalls.set(name, { node: var_decl, callers: new Map() });
+                            asm_bindings.env.set(name, { node: var_decl, callers: new Map() });
                         } else if (node.property.type === 'Literal'){
                             assert(!candidates.includes(node.property.value))
                         }
@@ -197,7 +197,7 @@ ast = acorn.parse(ast, {locations: true});
     assert(asm_bindings.return);
     assert(asm_bindings.fn.size);
     assert(asm_bindings.fn_tables.size);
-    assert(asm_bindings.syscalls.size);
+    assert(asm_bindings.env.size);
 
     // console.log(asm_bindings);
 
@@ -207,7 +207,7 @@ ast = acorn.parse(ast, {locations: true});
     (function() {
         const skip_asserts = new Set([asm_bindings.return, 
             ...Array.from(asm_bindings.fn_tables.values(), v => v.node),
-            ...Array.from(asm_bindings.syscalls.values(), v => v.node)]);
+            ...Array.from(asm_bindings.env.values(), v => v.node)]);
 
         var has_ref_to_asm;
         traverse_replace_asmjs({
@@ -254,8 +254,8 @@ ast = acorn.parse(ast, {locations: true});
                                 skip_asserts.add(callee);
                                 // console.log(callee.name)
                                 // console.log(callers)
-                            } else if(asm_bindings.syscalls.has(callee.name)){
-                                const {callers} = asm_bindings.syscalls.get(callee.name);
+                            } else if(asm_bindings.env.has(callee.name)){
+                                const {callers} = asm_bindings.env.get(callee.name);
                                 if (callers.has(fn.id.name)){
                                     callers.get(fn.id.name).push(node);
                                 } else {
@@ -295,7 +295,7 @@ ast = acorn.parse(ast, {locations: true});
                             assert(asm_bindings.fn.get(node.name).node.id === node);
                         }
                         assert(!asm_bindings.fn_tables.has(node.name));
-                        assert(!asm_bindings.syscalls.has(node.name));
+                        assert(!asm_bindings.env.has(node.name));
                         break;
                 }
             }
@@ -306,14 +306,14 @@ ast = acorn.parse(ast, {locations: true});
 
     // final stage - replace nodes
     (function(){
-        var yld_callers = [], syscalls = [];
+        var yld_callers = [], yld_env = [];
         const yld_fn_names = new Set(), yld_fn_seed = [],
               push_callers = c => {
                 for(const a of c.values()) yld_callers.push(...a);
               };
 
-        for (const [key, value] of asm_bindings.syscalls) {
-            syscalls.push(value.node);
+        for (const [key, value] of asm_bindings.env) {
+            yld_env.push(value.node);
             const callers_names = [...value.callers.keys()];
             yld_fn_seed.push(...callers_names);
             console.log('Sys calls: ' + callers_names + ' --> ' + key);
@@ -351,240 +351,45 @@ ast = acorn.parse(ast, {locations: true});
         console.log('\x1B[92mAST modifications...\x1B[0m');
 
         yld_callers = new Set(yld_callers);
-        syscalls = new Set(syscalls);
+        yld_env = new Set(yld_env);
 
         traverse_replace_asmjs({
             leave: ({node, assert}) => {
-                if (syscalls.has(node)){
+                if (yld_env.has(node)){
                     assert(node.declarations.length === 1);
                     const decl = node.declarations[0];
-                    const new_node = {
-                        "type": "FunctionDeclaration",
-                        "id": decl.id,
-                        "params": [
+                    node.declarations[0].init = {
+                        "type": "CallExpression",
+                        "callee": {
+                            "type": "MemberExpression",
+                            "computed": false,
+                            "object": {
+                                "type": "MemberExpression",
+                                "computed": false,
+                                "object": {
+                                    "type": "Identifier",
+                                    "name": "Module"
+                                },
+                                "property": {
+                                    "type": "Identifier",
+                                    "name": "yld_api"
+                                }
+                            },
+                            "property": decl.id
+                        },
+                        "arguments": [
+                            decl.init, 
                             {
                                 "type": "Identifier",
-                                "name": "which"
+                                "name": "SYSCALLS"
                             },
                             {
                                 "type": "Identifier",
-                                "name": "varargs"
+                                "name": "asm"
                             }
-                        ],
-                        "body": {
-                            "type": "BlockStatement",
-                            "body": [
-                                {
-                                    "type": "ExpressionStatement",
-                                    "expression": {
-                                        "type": "AssignmentExpression",
-                                        "operator": "=",
-                                        "left": {
-                                            "type": "MemberExpression",
-                                            "computed": false,
-                                            "object": {
-                                                "type": "Identifier",
-                                                "name": "SYSCALLS"
-                                            },
-                                            "property": {
-                                                "type": "Identifier",
-                                                "name": "varargs"
-                                            }
-                                        },
-                                        "right": {
-                                            "type": "Identifier",
-                                            "name": "varargs"
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "TryStatement",
-                                    "block": {
-                                        "type": "BlockStatement",
-                                        "body": [
-                                            {
-                                                "type": "VariableDeclaration",
-                                                "declarations": [
-                                                    {
-                                                        "type": "VariableDeclarator",
-                                                        "id": {
-                                                            "type": "Identifier",
-                                                            "name": "fd"
-                                                        },
-                                                        "init": {
-                                                            "type": "MemberExpression",
-                                                            "computed": false,
-                                                            "object": {
-                                                                "type": "CallExpression",
-                                                                "callee": {
-                                                                    "type": "MemberExpression",
-                                                                    "computed": false,
-                                                                    "object": {
-                                                                        "type": "Identifier",
-                                                                        "name": "SYSCALLS"
-                                                                    },
-                                                                    "property": {
-                                                                        "type": "Identifier",
-                                                                        "name": "getStreamFromFD"
-                                                                    }
-                                                                },
-                                                                "arguments": []
-                                                            },
-                                                            "property": {
-                                                                "type": "Identifier",
-                                                                "name": "fd"
-                                                            }
-                                                        }
-                                                    }
-                                                ],
-                                                "kind": "var"
-                                            },
-                                            {
-                                                "type": "IfStatement",
-                                                "test": {
-                                                    "type": "BinaryExpression",
-                                                    "operator": "!==",
-                                                    "left": {
-                                                        "type": "Identifier",
-                                                        "name": "fd"
-                                                    },
-                                                    "right": {
-                                                        "type": "Literal",
-                                                        "value": 0,
-                                                        "raw": "0"
-                                                    }
-                                                },
-                                                "consequent": {
-                                                    "type": "BlockStatement",
-                                                    "body": [
-                                                        {
-                                                            "type": "ThrowStatement",
-                                                            "argument": {
-                                                                "type": "NewExpression",
-                                                                "callee": {
-                                                                    "type": "Identifier",
-                                                                    "name": "Error"
-                                                                },
-                                                                "arguments": [
-                                                                    {
-                                                                        "type": "BinaryExpression",
-                                                                        "operator": "+",
-                                                                        "left": {
-                                                                            "type": "Literal",
-                                                                            "value": "ASSERT: Not stdin (0) ? -> ",
-                                                                            "raw": "'ASSERT: Not stdin (0) ? -> '"
-                                                                        },
-                                                                        "right": {
-                                                                            "type": "Identifier",
-                                                                            "name": "fd"
-                                                                        }
-                                                                    }
-                                                                ]
-                                                            }
-                                                        }
-                                                    ]
-                                                },
-                                                "alternate": {
-                                                    "type": "BlockStatement",
-                                                    "body": [
-                                                        {
-                                                            "type": "ExpressionStatement",
-                                                            "expression": {
-                                                                "type": "YieldExpression",
-                                                                "argument": {
-                                                                    "type": "CallExpression",
-                                                                    "callee": {
-                                                                        "type": "MemberExpression",
-                                                                        "computed": false,
-                                                                        "object": {
-                                                                            "type": "Identifier",
-                                                                            "name": "Module"
-                                                                        },
-                                                                        "property": {
-                                                                            "type": "Identifier",
-                                                                            "name": "get_stdin_promise"
-                                                                        }
-                                                                    },
-                                                                    "arguments": []
-                                                                },
-                                                                "delegate": false
-                                                            }
-                                                        }
-                                                    ]
-                                                }
-                                            }
-                                        ]
-                                    },
-                                    "handler": {
-                                        "type": "CatchClause",
-                                        "param": {
-                                            "type": "Identifier",
-                                            "name": "e"
-                                        },
-                                        "body": {
-                                            "type": "BlockStatement",
-                                            "body": [
-                                                {
-                                                    "type": "ExpressionStatement",
-                                                    "expression": {
-                                                        "type": "CallExpression",
-                                                        "callee": {
-                                                            "type": "MemberExpression",
-                                                            "computed": false,
-                                                            "object": {
-                                                                "type": "Identifier",
-                                                                "name": "console"
-                                                            },
-                                                            "property": {
-                                                                "type": "Identifier",
-                                                                "name": "warn"
-                                                            }
-                                                        },
-                                                        "arguments": [
-                                                            {
-                                                                "type": "Identifier",
-                                                                "name": "e"
-                                                            }
-                                                        ]
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    },
-                                    "finalizer": null
-                                },
-                                {
-                                    "type": "ReturnStatement",
-                                    "argument": {
-                                        "type": "CallExpression",
-                                        "callee": {
-                                            "type": "MemberExpression",
-                                            "computed": false,
-                                            "object": decl.init,
-                                            "property": {
-                                                "type": "Identifier",
-                                                "name": "apply"
-                                            }
-                                        },
-                                        "arguments": [
-                                            {
-                                                "type": "Literal",
-                                                "value": null,
-                                                "raw": "null"
-                                            },
-                                            {
-                                                "type": "Identifier",
-                                                "name": "arguments"
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        },
-                        "generator": true,
-                        "expression": false
+                        ]
                     };
-                    return new_node;
+                    return node;
                 }
                 if (yld_callers.has(node)){
                     return {
@@ -599,18 +404,14 @@ ast = acorn.parse(ast, {locations: true});
                 }
                 if (node === asm_bindings.return){
                     assert(node.argument.type === 'ObjectExpression');
-                    const props = [];
                     for (const prop of node.argument.properties){
                         assert(prop.key.type === 'Identifier');
                         assert(prop.value.type === 'Identifier');
                         if (yld_fn_names.has(prop.value.name)
                                 && prop.key.name !== '_main') {
-                            console.log(`\x1B[93m${prop.key.name}\x1B[0m (generator) removed from asm export (return value) !`);
-                        } else {
-                            props.push(prop);
+                            console.log(`ASM export: \x1B[93m${prop.key.name}\x1B[0m become generator !`);
                         }
                     }
-                    node.argument.properties = props;
                     return node;
                 }
             }

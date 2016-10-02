@@ -8354,20 +8354,7 @@ var asm = function (global, env, buffer) {
     var invoke_vi = env.invoke_vi;
     var _pthread_cleanup_pop = env._pthread_cleanup_pop;
     var ___lock = env.___lock;
-    function* ___syscall3(which, varargs) {
-        SYSCALLS.varargs = varargs;
-        try {
-            var fd = SYSCALLS.getStreamFromFD().fd;
-            if (fd !== 0) {
-                throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
-            } else {
-                yield Module.get_stdin_promise();
-            }
-        } catch (e) {
-            console.warn(e);
-        }
-        return env.___syscall3.apply(null, arguments);
-    }
+    var ___syscall3 = Module.yld_api.___syscall3(env.___syscall3, SYSCALLS, asm);
     var _pthread_self = env._pthread_self;
     var _abort = env._abort;
     var ___setErrNo = env.___setErrNo;
@@ -8380,20 +8367,7 @@ var asm = function (global, env, buffer) {
     var ___unlock = env.___unlock;
     var ___syscall140 = env.___syscall140;
     var _sysconf = env._sysconf;
-    function* ___syscall145(which, varargs) {
-        SYSCALLS.varargs = varargs;
-        try {
-            var fd = SYSCALLS.getStreamFromFD().fd;
-            if (fd !== 0) {
-                throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
-            } else {
-                yield Module.get_stdin_promise();
-            }
-        } catch (e) {
-            console.warn(e);
-        }
-        return env.___syscall145.apply(null, arguments);
-    }
+    var ___syscall145 = Module.yld_api.___syscall145(env.___syscall145, SYSCALLS, asm);
     var ___syscall146 = env.___syscall146;
     var tempFloat = 0.0;
     function stackAlloc(size) {
@@ -17893,6 +17867,7 @@ var asm = function (global, env, buffer) {
         _malloc: _malloc,
         _memcpy: _memcpy,
         _bitshift64Lshr: _bitshift64Lshr,
+        _fflush: _fflush,
         ___errno_location: ___errno_location,
         _bitshift64Shl: _bitshift64Shl,
         runPostSets: runPostSets,
@@ -17904,6 +17879,7 @@ var asm = function (global, env, buffer) {
         setTempRet0: setTempRet0,
         getTempRet0: getTempRet0,
         dynCall_ii: dynCall_ii,
+        dynCall_iiii: dynCall_iiii,
         dynCall_vi: dynCall_vi
     };
 }(Module.asmGlobalArg, Module.asmLibraryArg, buffer);
