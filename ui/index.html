@@ -78,7 +78,7 @@
         Module.arguments = [];
 
         var assert_resolved = null;
-        var prompt_data = {ready: 1, data: null};
+        var prompt_data = null;
 
         function* get_stdin_promise () {
           if (assert_resolved === false) {
@@ -86,17 +86,11 @@
             console.error(err);
             throw err;
           }
-          if (prompt_data.data !== null) {
-            var err = new Error('Previous data ?');
-            console.error(err);
-            throw err;
-          }
-          if (prompt_data.ready) {
+          if (prompt_data === null) {
             assert_resolved = false;
             yield new Promise(function(resolve, reject) {
               jqconsole.Prompt(true, function (data) {
-                  prompt_data.ready = 0;
-                  prompt_data.data = data;
+                  prompt_data = data;
                   assert_resolved = true;
                   resolve();
               }); 
@@ -155,28 +149,24 @@
           }
 
           // cat /proc/tty/drivers
-          // https://github.com/kripken/emscripten/issues/4366
-          // fix isatty() fails if just override Module[stdout]
-
           // cat /proc/tty/drivers
           // stdin
           TTY.ttys[FS.makedev(5, 0)].ops.get_char = function (tty) {
             if (!tty.input.length) {
-              if (prompt_data.data === null) {
-                // get_char called without get_stdin_promise ?
+              if (prompt_data === null) {
                 return null;
               }
-              prompt_data.ready = 0;
-              tty.input = Module['intArrayFromString'](prompt_data.data + '\n', true);
-              prompt_data.data = null;
+              tty.input = Module['intArrayFromString'](prompt_data + '\n', true);
             }
             var result = tty.input.shift();
             if (!tty.input.length) {
-              prompt_data.ready = 1;
+              prompt_data = null;
             }
             return result;
           };
 
+          // https://github.com/kripken/emscripten/issues/4366
+          // fix isatty() fails if just override Module[stdout]
           // stdout
           TTY.ttys[FS.makedev(5, 0)].ops.put_char = function (tty, val) {
             jqconsole.Write(Module['UTF8ArrayToString']([val], 0));
