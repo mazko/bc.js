@@ -22,8 +22,7 @@
       position:relative;
       background-color: black;
       border: 2px solid #CCC;
-      margin: 0 auto;
-      margin-top: 50px;
+      margin: 25px auto;
     }
     /* The inner console element. */
     .jqconsole {
@@ -74,41 +73,66 @@
 
     <script>
       $(function () {
+        'use strict';
+
         var jqconsole = $('#console').jqconsole('','');
         var Module = {};
-
-        Module.noExitRuntime = true;      
+     
         Module.arguments = [];
 
         var assert_resolved = null;
         var prompt_data = null;
-        Module.prompt_custom = function(){ 
-          var a = prompt_data; 
-          prompt_data = null;
-          return a;
-        };
-        Module.get_stdin_promise = function () {
+
+        function* get_stdin_promise () {
           if (assert_resolved === false) {
             var err = new Error('Blocking stdin recursion ?');
             console.error(err);
             throw err;
           }
-          if (prompt_data !== null) {
-            var err = new Error('Previous data ?');
-            console.error(err);
-            throw err;
+          if (prompt_data === null) {
+            assert_resolved = false;
+            yield new Promise(function(resolve, reject) {
+              jqconsole.Prompt(true, function (data) {
+                  prompt_data = data;
+                  assert_resolved = true;
+                  resolve();
+              }); 
+            });
           }
-          assert_resolved = false;
-          return new Promise(function(resolve, reject) {
-            jqconsole.Prompt(true, function (data) {
-              prompt_data = data;
-              assert_resolved = true;
-              resolve();
-            });            
-          });
         }
 
-        Module.pre_init_custom = function(TTY, FS) {
+        Module.yld_api = {
+          ___syscall3: function* (which, varargs) {
+            Module.yld_SYSCALLS.varargs = varargs;
+            try {
+                var fd = Module.yld_SYSCALLS.getStreamFromFD().fd;
+                if (fd !== 0) {
+                    throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
+                } else {
+                    yield* get_stdin_promise();
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+            return Module.asmLibraryArg.___syscall3.apply(null, arguments);
+          },
+          ___syscall145: function* (which, varargs) {
+            Module.yld_SYSCALLS.varargs = varargs;
+            try {
+                var fd = Module.yld_SYSCALLS.getStreamFromFD().fd;
+                if (fd !== 0) {
+                    //throw new Error('ASSERT: Not stdin (0) ? -> ' + fd);
+                } else {
+                    yield* get_stdin_promise();
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+            return Module.asmLibraryArg.___syscall145.apply(null, arguments);
+          }
+        };
+
+        Module.yld_pre_init = function(TTY, FS) {
           var realMain = Module._main;
           Module._main = function() {
             function execute(generator, yieldValue) {
@@ -129,6 +153,23 @@
           // cat /proc/tty/drivers
           // https://github.com/kripken/emscripten/issues/4366
           // fix isatty() fails if just override Module[stdout]
+
+          // cat /proc/tty/drivers
+          // stdin
+          TTY.ttys[FS.makedev(5, 0)].ops.get_char = function (tty) {
+            if (!tty.input.length) {
+              if (prompt_data === null) {
+                return null;
+              }
+              tty.input = Module['intArrayFromString'](prompt_data + '\n', true);
+            }
+            var result = tty.input.shift();
+            if (!tty.input.length) {
+              prompt_data = null;
+            }
+            return result;
+          };
+
           // stdout
           TTY.ttys[FS.makedev(5, 0)].ops.put_char = function (tty, val) {
             jqconsole.Write(Module['UTF8ArrayToString']([val], 0));
