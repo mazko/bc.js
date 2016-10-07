@@ -169,11 +169,7 @@ ast = acorn.parse(ast, {locations: true});
                     case 'MemberExpression': {
                         // var ___syscall145=env.___syscall145;
                         const candidates = ['___syscall145', '___syscall3'];
-                        const dyn_call_exs = [
-                          'invoke_vi', 'invoke_iiii', 'invoke_vii', 'invoke_i',
-                          'invoke_ii', 'invoke_viii', 'invoke_v', 'invoke_iiiiiiiii',
-                          'invoke_iiiii', 'invoke_iiiiii', 'invoke_viiii', 'invoke_iii'
-                        ];
+                        const dyn_call_exs = [];
                         if (node.property.type === 'Identifier' 
                                 && [...candidates, ...dyn_call_exs].includes(node.property.name)) {
                             assert(node.computed === false);
