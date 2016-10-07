@@ -34,13 +34,14 @@ ast = acorn.parse(ast, {locations: true});
             && ['almost asm', 'use asm'].includes(node.expression.value);
 
         // find asm node
-        var asm_node;
+        var asm_node, asm_type;
         (function(){
             const stack = [];
             estraverse.traverse(ast, {
                 enter: (node) => {
                     if(is_asm_node(node)) {
                         assert(!asm_node, 'nested asm ?');
+                        asm_type = node.expression.value;
                         [asm_node] = stack.slice(-2);
                     }
                     stack.push(node);
@@ -69,7 +70,7 @@ ast = acorn.parse(ast, {locations: true});
                     if (is_asm_scope) {
                         if (enter) {
                             replace = enter({
-                                node, parent, asm: asm_node, stack: asm_stack,
+                                node, parent, asm: asm_node, stack: asm_stack, type: asm_type,
                                 assert: (c, m='') => 
                                     assert(c, m + '\n' + JSON.stringify(node.loc))
                             });
@@ -85,7 +86,7 @@ ast = acorn.parse(ast, {locations: true});
                         asm_stack.pop();
                         if (leave) {
                             replace = leave({
-                                node, parent, asm: asm_node, stack: asm_stack,
+                                node, parent, asm: asm_node, stack: asm_stack, type: asm_type,
                                 assert: (c, m='') => 
                                     assert(c, m + '\n' + JSON.stringify(node.loc))
                             });
@@ -412,68 +413,90 @@ ast = acorn.parse(ast, {locations: true});
         yld_env = new Set(yld_env);
 
         traverse_replace_asmjs({
-            leave: ({node, assert}) => {
+            leave: ({node, assert, type}) => {
                 if (yld_env.has(node)){
                     assert(node.declarations.length === 1);
                     const decl = node.declarations[0];
-                    return {
-                        "type": "FunctionDeclaration",
-                        "id": decl.id,
-                        "params": [],
-                        "body": {
-                            "type": "BlockStatement",
-                            "body": [
-                                {
-                                    "type": "ReturnStatement",
-                                    "argument": {
-                                        "type": "YieldExpression",
-                                        "argument": {
-                                            "type": "CallExpression",
-                                            "callee": {
-                                                "type": "MemberExpression",
-                                                "computed": false,
-                                                "object": {
-                                                    "type": "MemberExpression",
-                                                    "computed": false,
-                                                    "object": {
-                                                        "type": "MemberExpression",
-                                                        "computed": false,
-                                                        "object": {
-                                                            "type": "Identifier",
-                                                            "name": "Module"
-                                                        },
-                                                        "property": {
-                                                            "type": "Identifier",
-                                                            "name": "yld_api"
-                                                        }
-                                                    },
-                                                    "property": decl.init.property
-                                                },
-                                                "property": {
-                                                    "type": "Identifier",
-                                                    "name": "apply"
-                                                }
-                                            },
-                                            "arguments": [
-                                                {
-                                                    "type": "Literal",
-                                                    "value": null,
-                                                    "raw": "null"
-                                                },
-                                                {
-                                                    "type": "Identifier",
-                                                    "name": "arguments"
-                                                }
-                                            ]
-                                        },
-                                        "delegate": true
-                                    }
-                                }
-                            ]
-                        },
-                        "generator": true,
-                        "expression": false
-                    };
+                    if (type === 'use asm') {
+                      return {
+                          "type": "FunctionDeclaration",
+                          "id": decl.id,
+                          "params": [],
+                          "body": {
+                              "type": "BlockStatement",
+                              "body": [
+                                  {
+                                      "type": "ReturnStatement",
+                                      "argument": {
+                                          "type": "YieldExpression",
+                                          "argument": {
+                                              "type": "CallExpression",
+                                              "callee": {
+                                                  "type": "MemberExpression",
+                                                  "computed": false,
+                                                  "object": {
+                                                      "type": "MemberExpression",
+                                                      "computed": false,
+                                                      "object": {
+                                                          "type": "MemberExpression",
+                                                          "computed": false,
+                                                          "object": {
+                                                              "type": "Identifier",
+                                                              "name": "Module"
+                                                          },
+                                                          "property": {
+                                                              "type": "Identifier",
+                                                              "name": "yld_api"
+                                                          }
+                                                      },
+                                                      "property": decl.init.property
+                                                  },
+                                                  "property": {
+                                                      "type": "Identifier",
+                                                      "name": "apply"
+                                                  }
+                                              },
+                                              "arguments": [
+                                                  {
+                                                      "type": "Literal",
+                                                      "value": null,
+                                                      "raw": "null"
+                                                  },
+                                                  {
+                                                      "type": "Identifier",
+                                                      "name": "arguments"
+                                                  }
+                                              ]
+                                          },
+                                          "delegate": true
+                                      }
+                                  }
+                              ]
+                          },
+                          "generator": true,
+                          "expression": false
+                      };
+                    } else {
+                      // almost asm
+                      decl.init = {
+                          "type": "MemberExpression",
+                          "computed": false,
+                          "object": {
+                              "type": "MemberExpression",
+                              "computed": false,
+                              "object": {
+                                  "type": "Identifier",
+                                  "name": "Module"
+                              },
+                              "property": {
+                                  "type": "Identifier",
+                                  "name": "yld_api"
+                              }
+                          },
+                          "property": decl.init.property
+                      };
+                      return node;
+                    }
                 }
                 if (yld_callers.has(node)){
                     return {
@@ -488,14 +511,34 @@ ast = acorn.parse(ast, {locations: true});
                 }
                 if (node === asm_bindings.return){
                     assert(node.argument.type === 'ObjectExpression');
+                    const props = [], yld_props = [];
                     for (const prop of node.argument.properties){
                         assert(prop.key.type === 'Identifier');
                         assert(prop.value.type === 'Identifier');
                         if (yld_fn_names.has(prop.value.name)
                                 && prop.key.name !== '_main') {
+                            yld_props.push(prop);
                             console.log(`ASM export: \x1B[93m${prop.key.name}\x1B[0m become generator !`);
+                        } else {
+                            props.push(prop);
                         }
                     }
+                    props.push({
+                        "type": "Property",
+                        "key": {
+                            "type": "Identifier",
+                            "name": "yld_export"
+                        },
+                        "computed": false,
+                        "value": {
+                            "type": "ObjectExpression",
+                            "properties": yld_props
+                        },
+                        "kind": "init",
+                        "method": false,
+                        "shorthand": false
+                    });
+                    node.argument.properties = props;
                     return node;
                 }
             }

@@ -17,8 +17,7 @@
       position:relative;
       background-color: black;
       border: 2px solid #CCC;
-      margin: 0 auto;
-      margin-top: 50px;
+      margin: 25px auto;
     }
     /* The inner console element. */
     .jqconsole {
@@ -69,12 +68,12 @@
 
     <script>
       $(function () {
-        window.jqconsole = $('#console').jqconsole('','');
 
-        window.Module = {};
+        'use strict';
 
-        Module.noExitRuntime = true;      
-
+        var jqconsole = $('#console').jqconsole('','');
+        var Module = {};
+     
         Module.arguments = [];
 
         var assert_resolved = null;
@@ -130,7 +129,6 @@
         };
 
         Module.yld_pre_init = function(TTY, FS) {
-
           var realMain = Module._main;
           Module._main = function() {
             function execute(generator, yieldValue) {
@@ -149,6 +147,9 @@
           }
 
           // cat /proc/tty/drivers
+          // https://github.com/kripken/emscripten/issues/4366
+          // fix isatty() fails if just override Module[stdout]
+
           // cat /proc/tty/drivers
           // stdin
           TTY.ttys[FS.makedev(5, 0)].ops.get_char = function (tty) {
@@ -165,8 +166,6 @@
             return result;
           };
 
-          // https://github.com/kripken/emscripten/issues/4366
-          // fix isatty() fails if just override Module[stdout]
           // stdout
           TTY.ttys[FS.makedev(5, 0)].ops.put_char = function (tty, val) {
             jqconsole.Write(Module['UTF8ArrayToString']([val], 0));

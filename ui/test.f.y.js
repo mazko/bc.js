@@ -13545,7 +13545,6 @@ function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){
 	        _malloc: yb,
 	        _memcpy: Jb,
 	        _bitshift64Lshr: Hb,
-	        _fflush: ab,
 	        ___errno_location: Oa,
 	        _bitshift64Shl: Ib,
 	        runPostSets: Db,
@@ -13557,8 +13556,8 @@ function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){
 	        setTempRet0: Ia,
 	        getTempRet0: Ja,
 	        dynCall_ii: Tb,
-	        dynCall_iiii: Ub,
-	        dynCall_vi: Vb
+	        dynCall_vi: Vb,
+	        yld_export: { dynCall_iiii: Ub }
 	    };
 	}(Module.asmGlobalArg, Module.asmLibraryArg, buffer);
 	var _i64Subtract = Module["_i64Subtract"] = asm["_i64Subtract"];
@@ -13570,7 +13569,6 @@ function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){
 	var _malloc = Module["_malloc"] = asm["_malloc"];
 	var _memcpy = Module["_memcpy"] = asm["_memcpy"];
 	var _bitshift64Lshr = Module["_bitshift64Lshr"] = asm["_bitshift64Lshr"];
-	var _fflush = Module["_fflush"] = asm["_fflush"];
 	var ___errno_location = Module["___errno_location"] = asm["___errno_location"];
 	var _bitshift64Shl = Module["_bitshift64Shl"] = asm["_bitshift64Shl"];
 	var dynCall_ii = Module["dynCall_ii"] = asm["dynCall_ii"];
@@ -13728,4 +13726,5 @@ function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){
 	if (Module["noInitialRun"]) {
 	    shouldRunNow = false;
 	}
+	Module["noExitRuntime"] = true;
 	run();}

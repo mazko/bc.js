@@ -9,8 +9,10 @@ unset alias
 
 mkdir -p emcc-build/
 
+# https://palant.de/2016/02/05/compiling-c-to-javascript-emscripten-vs-cheerp
 emcc $1 --memory-init-file 0  \
-   test.c \
+  test.c \
+  -s NO_EXIT_RUNTIME=1 \
   -o ui/test.js
 
 if [ ! -d "node_env" ]; then
