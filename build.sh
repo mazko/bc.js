@@ -29,18 +29,21 @@ if [ ! -d "bc-1.06" ]; then
 fi
 
 mkdir -p emcc-build/
-emmake make install CFLAGS='-D__GNU_LIBRARY__'
+emmake make install CFLAGS='-D__GNU_LIBRARY__ -Werror -Wno-error=pointer-sign'
 
 cp emcc-build/bin/bc emcc-build/bc.bc
 
+# https://palant.de/2016/02/05/compiling-c-to-javascript-emscripten-vs-cheerp
 emcc $1 --memory-init-file 0 \
    ../emcc-build/bc.bc \
+  -s NO_EXIT_RUNTIME=1 \
   -o ../ui/bc.js
 
 cp emcc-build/bin/dc emcc-build/dc.bc
 
 emcc $1 --memory-init-file 0 \
    ../emcc-build/dc.bc \
+  -s NO_EXIT_RUNTIME=1 \
   -o ../ui/dc/dc.js
 
 if [ ! -d "node_env" ]; then
@@ -62,8 +65,7 @@ node yieldify.js ui/dc/dc.js ui/dc/dc.y.js $2
   echo 'function bc_asmjs_fn(seBOALvGyRocJVLbbIUuBzkWjXAYwGQBGOfkNutiFD){'
   echo '\tvar Module = seBOALvGyRocJVLbbIUuBzkWjXAYwGQBGOfkNutiFD;'
   echo '\tvar window = {};'
-  echo '\twindow.prompt = Module.prompt_custom;'
-  echo '\tModule.preInit = function(){ Module.pre_init_custom(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/bc.y.js
   echo '}'
 } > ui/bc.f.y.js
@@ -72,8 +74,7 @@ node yieldify.js ui/dc/dc.js ui/dc/dc.y.js $2
   echo 'function dc_asmjs_fn(bUyAauPnPjEOQKZkocjPfAWOLfFllQqTmAzPHjTGEF){'
   echo '\tvar Module = bUyAauPnPjEOQKZkocjPfAWOLfFllQqTmAzPHjTGEF;'
   echo '\tvar window = {};'
-  echo '\twindow.prompt = Module.prompt_custom;'
-  echo '\tModule.preInit = function(){ Module.pre_init_custom(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/dc/dc.y.js
   echo '}'
 } > ui/dc/dc.f.y.js
