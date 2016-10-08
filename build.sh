@@ -7,16 +7,16 @@ set -e
 
 docker images | grep -q bc-emsdk || {
    echo "FROM 42ua/emsdk"
-   echo "RUN apt-get install -y flex bison"
+   echo "RUN apt-get install -y flex bison texinfo"
 } | docker build --no-cache -t bc-emsdk -
 
 for alias in 'emcc' 'emconfigure' 'emmake'; do
-  alias $alias="docker run -it --rm -m 1g -w='/home/src/bc-1.06' -v `pwd`:/home/src bc-emsdk $alias"
+  alias $alias="docker run -it --rm -m 1g -w='/home/src/bc-1.06.95' -v `pwd`:/home/src bc-emsdk $alias"
 done
 unset alias
 
-if [ ! -d "bc-1.06" ]; then
-  curl -sL ftp://ftp.gnu.org/gnu/bc/bc-1.06.tar.gz | tar xz
+if [ ! -d "bc-1.06.95" ]; then
+  curl -sL ftp://alpha.gnu.org/gnu/bc/bc-1.06.95.tar.bz2 | tar xj
 
   # configure
 
@@ -25,11 +25,10 @@ if [ ! -d "bc-1.06" ]; then
 
   # git diff bc-1.06/dc/string.c > ptrdiff_t.patch.diff
   patch -p1 < ptrdiff_t.patch.diff
-  patch -p1 < string.h.patch.diff
 fi
 
 mkdir -p emcc-build/
-emmake make install CFLAGS='-D__GNU_LIBRARY__ -Werror -Wno-error=pointer-sign'
+emmake make install CFLAGS='-DELIDE_CODE -Werror -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=unused-function'
 
 cp emcc-build/bin/bc emcc-build/bc.bc
 
