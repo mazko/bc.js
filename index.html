@@ -59,15 +59,28 @@
         color: white;
     }
 
-    
     /* The text color of the stderr. */
     .jqconsole-stderr {
         color: red;
+    }
+
+    .should-know-tips {
+      width: 750px;
+      margin: 0 auto 25px auto;
+      text-align: center;
+      color: black;
+    }
+    .should-know-tips a {
+      color: inherit;
+      text-decoration: inherit;
     }
     </style>
   </head>
   <body>
     <div id="console"></div>
+    <div class='should-know-tips'>
+      Arguments: <a href='http://stackoverflow.com/questions/27470210/bash-bc-modulo-does-not-work-with-l-flag' rel="nofollow" target="_blank">--mathlib</a>
+    </div>
     <script src="lib/jquery.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="lib/jqconsole/jqconsole.min.js" type="text/javascript" charset="utf-8"></script>
 

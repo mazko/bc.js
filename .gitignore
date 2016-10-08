@@ -1,4 +1,4 @@
-bc-1.06/
+bc-*/
 emcc-build/
 node_modules/
 node_env/
