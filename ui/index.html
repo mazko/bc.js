@@ -129,7 +129,6 @@
         };
 
         Module.yld_pre_init = function(TTY, FS) {
-          var realMain = Module._main;
           Module._main = function() {
             function execute(generator, yieldValue) {
               var next = generator.next(yieldValue);
@@ -143,7 +142,7 @@
                 console.log(next.value);
               }
             }
-            execute( realMain.apply(null, arguments) );
+            execute( Module.yld_asm.yld_export._main.apply(null, arguments) );
           }
 
           // cat /proc/tty/drivers

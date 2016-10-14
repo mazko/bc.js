@@ -32,7 +32,7 @@ node yieldify.js ui/test.js ui/test.y.js $2
   echo 'function test_asmjs_fn(zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr){'
   echo '\tvar Module = zQsRUPhCptGxlYZRxhrSFAbFuIYlRmanoKpVccSRIr;'
   echo '\tvar window = {};'
-  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_asm = asm; Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/test.y.js
   echo '}'
 } > ui/test.f.y.js
