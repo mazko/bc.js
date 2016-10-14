@@ -64,7 +64,7 @@ node yieldify.js ui/dc/dc.js ui/dc/dc.y.js $2
   echo 'function bc_asmjs_fn(seBOALvGyRocJVLbbIUuBzkWjXAYwGQBGOfkNutiFD){'
   echo '\tvar Module = seBOALvGyRocJVLbbIUuBzkWjXAYwGQBGOfkNutiFD;'
   echo '\tvar window = {};'
-  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_asm = asm; Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/bc.y.js
   echo '}'
 } > ui/bc.f.y.js
@@ -73,7 +73,7 @@ node yieldify.js ui/dc/dc.js ui/dc/dc.y.js $2
   echo 'function dc_asmjs_fn(bUyAauPnPjEOQKZkocjPfAWOLfFllQqTmAzPHjTGEF){'
   echo '\tvar Module = bUyAauPnPjEOQKZkocjPfAWOLfFllQqTmAzPHjTGEF;'
   echo '\tvar window = {};'
-  echo '\tModule.preInit = function(){ Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
+  echo '\tModule.preInit = function(){ Module.yld_asm = asm; Module.yld_SYSCALLS = SYSCALLS; Module.yld_pre_init(TTY, FS); };'
   sed 's/^/\t/' ui/dc/dc.y.js
   echo '}'
 } > ui/dc/dc.f.y.js

@@ -515,8 +515,7 @@ ast = acorn.parse(ast, {locations: true});
                     for (const prop of node.argument.properties){
                         assert(prop.key.type === 'Identifier');
                         assert(prop.value.type === 'Identifier');
-                        if (yld_fn_names.has(prop.value.name)
-                                && prop.key.name !== '_main') {
+                        if (yld_fn_names.has(prop.value.name)) {
                             yld_props.push(prop);
                             console.log(`ASM export: \x1B[93m${prop.key.name}\x1B[0m become generator !`);
                         } else {
