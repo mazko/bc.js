@@ -11,6 +11,7 @@ docker images | grep -q bc-emsdk || {
 } | docker build --no-cache -t bc-emsdk -
 
 for alias in 'emcc' 'emconfigure' 'emmake'; do
+  # docker run -e 'EMCC_DEBUG=1' ...
   alias $alias="docker run -it --rm -m 1g -w='/home/src/bc-1.06.95' -v `pwd`:/home/src bc-emsdk $alias"
 done
 unset alias
@@ -28,7 +29,7 @@ if [ ! -d "bc-1.06.95" ]; then
 fi
 
 mkdir -p emcc-build/
-emmake make install CFLAGS='-DELIDE_CODE -Werror -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=unused-function'
+emmake make clean install CFLAGS="$1 -DELIDE_CODE -Werror -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=unused-function"
 
 cp emcc-build/bin/bc emcc-build/bc.bc
 
